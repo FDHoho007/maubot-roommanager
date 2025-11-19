@@ -22,33 +22,36 @@ After room creation the bot will invite you as an administrator into the room.
 ## Upgrade Room
 
 ```
-!upgraderoom <Room ID>
+!upgraderoom [Room ID]
 ```
 
 This command can be used on existing rooms with a room version lower than the room version this bot uses (should be v12).
 The bot will upgrade the room and thereby set himself as room creator.
 The bot user and the executing user need to be administrators of the existing room.
+If this command receives no room id it will use the room the command was sent in.
 
 ## Add Administrator
 
 ```
-!addadmin <Room ID> <User ID>
+!addadmin <User ID> [Room ID]
 ```
 
 This command makes another user an administrator in the given room.
 If the user is not yet a member of the room he is invited before.
 The executing user needs to be an administrator of the room.
+If this command receives no room id it will use the room the command was sent in.
 
 This can usually also be achieved by using a matrix client.
 
 ## Remove Administrator
 
 ```
-!removeadmin <Room ID> <User ID>
+!removeadmin <User ID> [Room ID]
 ```
 
 This command demotes an administrator in the given room to a normal user.
 The executing user needs to be an administrator of the room.
+If this command receives no room id it will use the room the command was sent in.
 
 This cannot be achieved using matrix clients or the api since all admins have the same permission level and cannot touch each other.
 Only the room creator can remove administrators without them removing their permissions themselves.
@@ -56,11 +59,12 @@ Only the room creator can remove administrators without them removing their perm
 ## Become Administrator
 
 ```
-!becomeadmin <Room ID>
+!becomeadmin [Room ID]
 ```
 
 This command promotes the executing user to and administrator of the room.
 If the user is not yet a member of the room he is invited before.
 The executing user does not have to have any permissions in the room yet, but needs to be an instance administrator defined in the plugin config.
+If this command receives no room id it will use the room the command was sent in.
 
 This command can be used by organization admins to claim permissions in rooms of their organization without needing another room administrator.
