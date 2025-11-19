@@ -1,0 +1,3 @@
+# Instance administrators can become administrators in any room owned by the bot.
+# To add instance administrators, add their full matrix user IDs to the list below.
+administrators: []

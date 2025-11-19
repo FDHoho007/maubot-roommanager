@@ -1,0 +1,9 @@
+maubot: 0.1.0
+id: de.fdhoho007.roommanager
+version: 1.0.0
+modules:
+  - roommanager
+main_class: RoomManager
+config: true
+extra_files:
+  - base-config.yaml
