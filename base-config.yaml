@@ -1,3 +1,6 @@
 # Instance administrators can become administrators in any room owned by the bot.
 # To add instance administrators, add their full matrix user IDs to the list below.
 administrators: []
+# If this is set to true, the bot will not send success responses to commands in group chats.
+# In rooms with only one member (private chats), success responses will always be sent.
+silence_success_responses: false

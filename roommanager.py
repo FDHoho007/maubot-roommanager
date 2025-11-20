@@ -11,6 +11,7 @@ ROOM_VERSION = "12"
 class Config(BaseProxyConfig):
   def do_update(self, helper: ConfigUpdateHelper) -> None:
     helper.copy("administrators")
+    helper.copy("silence_success_responses")
 
 class RoomManager(Plugin):
   
@@ -78,7 +79,8 @@ class RoomManager(Plugin):
             room_version=ROOM_VERSION, 
             power_level_override={"users": {evt.sender: 100}}
         ))
-        await evt.reply(f"Created {room_type} {self.mention_mxid(room_id)} with visibility {visibility[0]}.", allow_html=True)
+        if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
+            await evt.reply(f"Created {room_type} {self.mention_mxid(room_id)} with visibility {visibility[0]}.", allow_html=True)
 
     @command.new(help=f"Upgrade a room to version {ROOM_VERSION} (only for room admins).")
     @command.argument("room_id", label="Room ID", required=False)
@@ -118,7 +120,8 @@ class RoomManager(Plugin):
             new_room_id = (await self.client.api.request(Method.POST, Path.v3.rooms[room_id].upgrade, {"new_version": ROOM_VERSION}))["replacement_room"]
             for member in [m for m in room_members if not m == self.client.mxid]:
                 await self.client.invite_user(new_room_id, member)
-            await evt.reply(f"Room {self.mention_mxid(room_id)} has been upgraded to v{ROOM_VERSION}.", allow_html=True)
+            if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
+                await evt.reply(f"Room {self.mention_mxid(room_id)} has been upgraded to v{ROOM_VERSION}.", allow_html=True)
         except Exception:
             await evt.reply(f"Could not upgrade the room {self.mention_mxid(room_id)}. Make sure I have sufficient permissions.", allow_html=True)
 
@@ -149,7 +152,8 @@ class RoomManager(Plugin):
                 power_levels.users[user_id] = 100
                 await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, power_levels)
 
-            await evt.reply(f"User {self.mention_mxid(user_id)} has been promoted to administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
+            if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
+                await evt.reply(f"User {self.mention_mxid(user_id)} has been promoted to administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
         except Exception as e:
             await evt.reply(e.args[0], allow_html=True)
             return
@@ -179,7 +183,8 @@ class RoomManager(Plugin):
                 power_levels.users[user_id] = 0
                 await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, power_levels)
 
-            await evt.reply(f"User {self.mention_mxid(user_id)} has been demoted from administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
+            if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
+                await evt.reply(f"User {self.mention_mxid(user_id)} has been demoted from administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
         except Exception as e:
             await evt.reply(e.args[0], allow_html=True)
             return
@@ -206,7 +211,8 @@ class RoomManager(Plugin):
                 power_levels.users[evt.sender] = 100
                 await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, power_levels)
 
-            await evt.reply(f"You have been promoted to administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
+            if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
+                await evt.reply(f"You have been promoted to administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
         except Exception as e:
             await evt.reply(e.args[0], allow_html=True)
             return
@@ -242,6 +248,14 @@ class RoomManager(Plugin):
     
     def mention_mxid(self, mxid: str) -> str:
         return f'<a href="https://matrix.to/#/{mxid}">{mxid}</a>'
+    
+    async def is_group_chat(self, room_id: str) -> bool:
+        """Returns True if the room is a group chat (more than 2 members), False otherwise."""
+        try:
+            members = [m.state_key for m in await self.client.get_members(room_id) if m.content.membership == Membership.JOIN]
+            return len(members) > 2
+        except Exception:
+            return False
 
     async def assert_room_version(self, room_id: str) -> None:
         """Asserts that the room is of the supported ROOM_VERSION and was created by the bot itself."""
