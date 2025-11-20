@@ -4,3 +4,9 @@ administrators: []
 # If this is set to true, the bot will not send success responses to commands in group chats.
 # In rooms with only one member (private chats), success responses will always be sent.
 silence_success_responses: false
+# Optional: If set, the bot will log the defined event types into this room.
+# Use matrix room ID format, e.g. !abcdefg:matrix.org
+logging_channel: ""
+logging_events:
+  - ROOM_CHANGE
+  - PERMISSION_CHANGE

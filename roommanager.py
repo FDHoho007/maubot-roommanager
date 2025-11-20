@@ -7,11 +7,15 @@ from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 from mautrix.types import RoomDirectoryVisibility, Membership, EventType, TextMessageEventContent, PowerLevelStateEventContent, RoomType, RoomID
 
 ROOM_VERSION = "12"
+EVENT_TYPE_ROOM_CHANGE = "ROOM_CHANGE"
+EVENT_TYPE_PERMISSION_CHANGE = "PERMISSION_CHANGE"
 
 class Config(BaseProxyConfig):
   def do_update(self, helper: ConfigUpdateHelper) -> None:
     helper.copy("administrators")
     helper.copy("silence_success_responses")
+    helper.copy("logging_channel")
+    helper.copy("logging_events")
 
 class RoomManager(Plugin):
   
@@ -81,6 +85,7 @@ class RoomManager(Plugin):
         ))
         if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
             await evt.reply(f"Created {room_type} {self.mention_mxid(room_id)} with visibility {visibility[0]}.", allow_html=True)
+        await self.log_event(EVENT_TYPE_ROOM_CHANGE, f"{self.mention_mxid(evt.sender)} created the {room_type} {self.mention_mxid(room_id)} with visibility {visibility[0]}.")
 
     @command.new(help=f"Upgrade a room to version {ROOM_VERSION} (only for room admins).")
     @command.argument("room_id", label="Room ID", required=False)
@@ -122,6 +127,7 @@ class RoomManager(Plugin):
                 await self.client.invite_user(new_room_id, member)
             if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
                 await evt.reply(f"Room {self.mention_mxid(room_id)} has been upgraded to v{ROOM_VERSION}.", allow_html=True)
+            await self.log_event(EVENT_TYPE_ROOM_CHANGE, f"{self.mention_mxid(evt.sender)} upgraded the room {self.mention_mxid(room_id)} to version {ROOM_VERSION}.")
         except Exception:
             await evt.reply(f"Could not upgrade the room {self.mention_mxid(room_id)}. Make sure I have sufficient permissions.", allow_html=True)
 
@@ -154,6 +160,7 @@ class RoomManager(Plugin):
 
             if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
                 await evt.reply(f"User {self.mention_mxid(user_id)} has been promoted to administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
+            await self.log_event(EVENT_TYPE_PERMISSION_CHANGE, f"{self.mention_mxid(evt.sender)} promoted {self.mention_mxid(user_id)} to administrator in room {self.mention_mxid(room_id)}.")
         except Exception as e:
             await evt.reply(e.args[0], allow_html=True)
             return
@@ -185,6 +192,7 @@ class RoomManager(Plugin):
 
             if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
                 await evt.reply(f"User {self.mention_mxid(user_id)} has been demoted from administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
+            await self.log_event(EVENT_TYPE_PERMISSION_CHANGE, f"{self.mention_mxid(evt.sender)} demoted {self.mention_mxid(user_id)} from administrator in room {self.mention_mxid(room_id)}.")
         except Exception as e:
             await evt.reply(e.args[0], allow_html=True)
             return
@@ -213,6 +221,7 @@ class RoomManager(Plugin):
 
             if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
                 await evt.reply(f"You have been promoted to administrator in room {self.mention_mxid(room_id)}.", allow_html=True)
+            await self.log_event(EVENT_TYPE_PERMISSION_CHANGE, f"{self.mention_mxid(evt.sender)} promoted themselves to administrator in room {self.mention_mxid(room_id)}.")
         except Exception as e:
             await evt.reply(e.args[0], allow_html=True)
             return
@@ -280,4 +289,15 @@ class RoomManager(Plugin):
             return room_members, power_levels
         except Exception:
             raise Exception(f"The room {self.mention_mxid(room_id)} does not exist or I am not a member of it.")
+        
+    async def log_event(self, event_type: str, message: str) -> None:
+        """Logs an event to the logging channel if configured."""
+        if self.config["logging_channel"] and event_type in self.config["logging_events"]:
+            try:
+                await self.client.send_message(
+                    self.config["logging_channel"],
+                    TextMessageEventContent(body=message)
+                )
+            except Exception:
+                self.log.warning(f"Could not log event to logging channel {self.config['logging_channel']}.")
         
