@@ -4,7 +4,7 @@ from maubot import Plugin, MessageEvent
 from maubot.handlers import command
 from mautrix.api import Method, Path
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
-from mautrix.types import RoomDirectoryVisibility, Membership, EventType, TextMessageEventContent, PowerLevelStateEventContent, RoomType, RoomID
+from mautrix.types import RoomDirectoryVisibility, Membership, EventType, TextMessageEventContent, PowerLevelStateEventContent, RoomType, RoomID, MessageType
 
 ROOM_VERSION = "12"
 EVENT_TYPE_ROOM_CHANGE = "ROOM_CHANGE"
@@ -289,15 +289,20 @@ class RoomManager(Plugin):
             return room_members, power_levels
         except Exception:
             raise Exception(f"The room {self.mention_mxid(room_id)} does not exist or I am not a member of it.")
-        
+    
+    def strip_html_tags(self, text: str) -> str:
+        return re.sub(re.compile('<.*?>'), '', text.replace('<br>', '\n'))
+
     async def log_event(self, event_type: str, message: str) -> None:
         """Logs an event to the logging channel if configured."""
         if self.config["logging_channel"] and event_type in self.config["logging_events"]:
-            try:
-                await self.client.send_message(
-                    self.config["logging_channel"],
-                    TextMessageEventContent(body=message)
+            await self.client.send_message(
+                self.config["logging_channel"],
+                TextMessageEventContent(
+                    msgtype=MessageType.TEXT,
+                    body=self.strip_html_tags(message),
+                    format="org.matrix.custom.html",
+                    formatted_body=message
                 )
-            except Exception:
-                self.log.warning(f"Could not log event to logging channel {self.config['logging_channel']}.")
+            )
         
