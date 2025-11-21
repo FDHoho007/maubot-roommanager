@@ -98,7 +98,7 @@ class RoomManager(Plugin):
             if create_event.type != None:
                 await evt.reply(f"The room {self.mention_mxid(room_id)} is a space. I can only upgrade rooms, not spaces.", allow_html=True)
                 return
-            if create_event.room_version >= ROOM_VERSION:
+            if int(create_event.room_version) >= int(ROOM_VERSION):
                 await evt.reply(f"The room {self.mention_mxid(room_id)} is already on version {create_event.room_version}. I currently uses room version {ROOM_VERSION}.", allow_html=True)
                 return
         except Exception:
@@ -114,12 +114,13 @@ class RoomManager(Plugin):
             pass
         
         # Check that the user is an admin in the room
-        try:
-            room_members, power_levels = await self.get_room_members(room_id)
-            await self.assert_room_admin(room_members, power_levels, evt.sender)
-        except Exception as e:
-            await evt.reply(e.args[0], allow_html=True)
-            return
+        if not evt.sender in self.config["administrators"]:
+            try:
+                room_members, power_levels = await self.get_room_members(room_id)
+                await self.assert_room_admin(room_members, power_levels, evt.sender)
+            except Exception as e:
+                await evt.reply(e.args[0], allow_html=True)
+                return
 
         try:
             new_room_id = (await self.client.api.request(Method.POST, Path.v3.rooms[room_id].upgrade, {"new_version": ROOM_VERSION}))["replacement_room"]
