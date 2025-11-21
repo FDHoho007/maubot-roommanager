@@ -9,6 +9,14 @@ To model a room beloging to an organization, you rather want a user/bot represen
 The plugin can be configured with instance administrators using the Web UI.
 Instance administrators can use the `!becomeadmin` command and thereby claim permissions in any room owned by the room manager.
 
+## List Rooms
+
+```
+!listrooms
+```
+
+This command lists all the rooms and spaces owned by the roommanager bot. The bot only owns rooms that are created by itself.
+
 ## Create Room
 
 ```
@@ -27,8 +35,22 @@ After room creation the bot will invite you as an administrator into the room.
 
 This command can be used on existing rooms with a room version lower than the room version this bot uses (should be v12).
 The bot will upgrade the room and thereby set himself as room creator.
+All existing and pending members will be invited to the new room.
 The bot user and the executing user need to be administrators of the existing room.
 If this command receives no room id it will use the room the command was sent in.
+
+While it is possible to upgrade spaces, most clients do not handle it gracefully. I therefore do not recommend upgrading spaces.
+
+## Forget Room
+
+```
+!forgetroom [Room ID]
+```
+
+This command makes the bot leave and forget a room or space.
+This only works, if the room is not created by the bot or has no other members except the bot.
+While this command could also be used from within the room, rooms created by the bot can still only be forgotten when empty.
+The executing user needs to be an instance administrator defined in the plugin config.
 
 ## Add Administrator
 
