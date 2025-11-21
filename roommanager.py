@@ -124,7 +124,8 @@ class RoomManager(Plugin):
 
         try:
             new_room_id = (await self.client.api.request(Method.POST, Path.v3.rooms[room_id].upgrade, {"new_version": ROOM_VERSION}))["replacement_room"]
-            for member in [m for m in room_members if not m == self.client.mxid]:
+            members = [m.state_key for m in await self.client.get_members(room_id) if m.content.membership in [Membership.JOIN, Membership.INVITE]]
+            for member in [m for m in members if not m == self.client.mxid]:
                 await self.client.invite_user(new_room_id, member)
             if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
                 await evt.reply(f"Room {self.mention_mxid(room_id)} has been upgraded to v{ROOM_VERSION}.", allow_html=True)
