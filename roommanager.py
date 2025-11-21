@@ -39,7 +39,7 @@ class RoomManager(Plugin):
         if len(rooms) == 0:
             await evt.reply("No rooms created by this Room Manager instance were found.", allow_html=True)
         else:
-            room_mentions = [f"{self.mention_mxid(r)} ({'Space' if rooms[r] == RoomType.SPACE else 'Room'})" for r in rooms.keys()]
+            room_mentions = [f"{self.mention_mxid(r)} / {await self.get_room_name(r)} ({'Space' if rooms[r] == RoomType.SPACE else 'Room'})" for r in rooms.keys()]
             await evt.reply(f"Rooms created by this Room Manager instance:\n" + "\n".join(room_mentions), allow_html=True)
 
     @command.new(help="Creates a new room and adds you as an administrator.")
@@ -266,6 +266,21 @@ class RoomManager(Plugin):
             return len(members) > 2
         except Exception:
             return False
+        
+    async def get_room_name(self, room_id: str) -> str:
+        """Returns the room name for the given room ID."""
+        try:
+            room_state = await self.client.get_state(room_id)
+            name_event = [e for e in room_state if e.type == EventType.ROOM_NAME]
+            alias_event = [e for e in room_state if e.type == EventType.ROOM_CANONICAL_ALIAS]
+            if len(name_event) > 0 and name_event[0].content.name:
+                return name_event[0].content.name
+            elif len(alias_event) > 0 and alias_event[0].content.canonical_alias:
+                return alias_event[0].content.canonical_alias
+            else:
+                return "Unnamed Room"
+        except Exception:
+            return "Unknown Room"
 
     async def assert_room_version(self, room_id: str) -> None:
         """Asserts that the room is of the supported ROOM_VERSION and was created by the bot itself."""
