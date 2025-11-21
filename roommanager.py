@@ -133,6 +133,33 @@ class RoomManager(Plugin):
         except Exception:
             await evt.reply(f"Could not upgrade the room {self.mention_mxid(room_id)}. Make sure I have sufficient permissions.", allow_html=True)
 
+    @command.new(help="Forget an empty room (only for instance admins).")
+    @command.argument("room_id", label="Room ID", required=False)
+    async def forgetroom(self, evt: MessageEvent, room_id: str) -> None:
+        room_id = self.parse_args(evt.content, evt.room_id, extract_user_id=False)
+        
+        if not evt.sender in self.config["administrators"]:
+            await evt.reply("Only instance administrators can use this command. You can manage instance administrators via the maubot Web UI.", allow_html=True)
+            return
+
+        create_event = [e for e in await self.client.get_state(room_id) if e.type == EventType.ROOM_CREATE]
+        if len(create_event) == 0:
+            await evt.reply(f"The room {self.mention_mxid(room_id)} does not exist or I am not a member of it.", allow_html=True)
+            return
+        if create_event[0].sender != self.client.mxid:
+            await self.client.leave_room(room_id)
+            await self.client.forget_room(room_id)
+            await evt.reply(f"I left the room {self.mention_mxid(room_id)} since I am not the owner.", allow_html=True)
+            return
+        
+        members = [m for m in await self.client.get_members(room_id) if m.content.membership == Membership.JOIN]
+        if len(members) > 1:
+            await evt.reply(f"The room {self.mention_mxid(room_id)} is not empty. Only empty rooms can be forgotten.", allow_html=True)
+            return
+        await self.client.leave_room(room_id)
+        await self.client.forget_room(room_id)
+        await evt.reply(f"I have forgotten the empty room {self.mention_mxid(room_id)}.", allow_html=True)
+
     @command.new(help="Add another administrator to a given room (only for existing room admins).")
     @command.argument("user_id", label="User ID", required=True)
     @command.argument("room_id", label="Room ID", required=False)
@@ -285,7 +312,7 @@ class RoomManager(Plugin):
 
     async def assert_room_version(self, room_id: str) -> None:
         """Asserts that the room is of the supported ROOM_VERSION and was created by the bot itself."""
-        room_creation_event = [e for e in (await self.client.get_state(room_id)) if e.type == EventType.ROOM_CREATE][0]
+        room_creation_event = [e for e in await self.client.get_state(room_id) if e.type == EventType.ROOM_CREATE][0]
         if room_creation_event.content.room_version != ROOM_VERSION:
             raise Exception(f"I only support rooms with version {ROOM_VERSION}. The room {self.mention_mxid(room_id)} has version {room_creation_event.content.room_version}.")
         if room_creation_event.sender != self.client.mxid:
