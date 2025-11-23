@@ -40,7 +40,7 @@ class RoomManager(Plugin):
             await evt.reply("No rooms created by this Room Manager instance were found.", allow_html=True)
         else:
             room_mentions = [f"{self.mention_mxid(r)} / {await self.get_room_name(r)} ({'Space' if rooms[r] == RoomType.SPACE else 'Room'})" for r in rooms.keys()]
-            await evt.reply(f"Rooms created by this Room Manager instance:\n" + "\n".join(room_mentions), allow_html=True)
+            await evt.reply(f"Rooms created by this Room Manager instance:<br>" + "<br>".join(room_mentions), allow_html=True)
 
     @command.new(help="Creates a new room and adds you as an administrator.")
     @command.argument("visibility", label="public/private", matches=r"^(public|private)$", required=True)
