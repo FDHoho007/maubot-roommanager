@@ -10,6 +10,35 @@ ROOM_VERSION = "12"
 EVENT_TYPE_ROOM_CHANGE = "ROOM_CHANGE"
 EVENT_TYPE_PERMISSION_CHANGE = "PERMISSION_CHANGE"
 
+DEFAULT_POWER_LEVELS = {
+    "users_default": 0,
+    "events": {
+        "m.room.name": 50,
+        "m.room.avatar": 50,
+        "m.room.power_levels": 100,
+        "m.room.history_visibility": 100,
+        "m.room.canonical_alias": 50,
+        "m.room.tombstone": 150,
+        "m.room.server_acl": 100,
+        "m.room.encryption": 100,
+        "org.matrix.msc3401.call.member": 0,
+        "org.matrix.msc3401.call": 100,
+        "m.space.child": 50,
+        "m.room.topic": 50,
+        "m.room.pinned_events": 50,
+        "m.reaction": 0,
+        "m.room.redaction": 0,
+        "im.vector.modular.widgets": 50
+    },
+    "events_default": 0,
+    "state_default": 50,
+    "ban": 50,
+    "kick": 50,
+    "redact": 50,
+    "invite": 0,
+    "historical": 100
+}
+
 class Config(BaseProxyConfig):
   def do_update(self, helper: ConfigUpdateHelper) -> None:
     helper.copy("administrators")
@@ -81,7 +110,7 @@ class RoomManager(Plugin):
             initial_state=initial_state,
             creation_content=creation_content,
             room_version=ROOM_VERSION, 
-            power_level_override={"users": {evt.sender: 100}}
+            power_level_override=DEFAULT_POWER_LEVELS | {"users": {evt.sender: 100}}
         ))
         if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
             await evt.reply(f"Created {room_type} {self.mention_mxid(room_id)} with visibility {visibility[0]}.", allow_html=True)
@@ -160,6 +189,27 @@ class RoomManager(Plugin):
         await self.client.forget_room(room_id)
         await evt.reply(f"I have forgotten the empty room {self.mention_mxid(room_id)}.", allow_html=True)
 
+    @command.new(help="Fix power levels in a room (only for room admins).")
+    @command.argument("room_id", label="Room ID", required=False)
+    async def fixroompowerlevels(self, evt: MessageEvent, room_id: str) -> None:
+        room_id = self.parse_args(evt.content, evt.room_id, extract_user_id=False)
+
+        try:
+            room_members, power_levels = await self.get_room_members(room_id)
+            await self.assert_room_version(room_id)
+            await self.assert_room_admin(room_members, power_levels, evt.sender)
+
+            self.log.info(power_levels.serialize())
+            new_power_levels = DEFAULT_POWER_LEVELS | power_levels.serialize()
+            new_power_levels["events"] = DEFAULT_POWER_LEVELS["events"] | power_levels.serialize().get("events", {})
+            new_power_levels["notifications"] = power_levels.serialize().get("notifications", {})
+            new_power_levels["invite"] = 0
+            self.log.info(new_power_levels)
+            await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, new_power_levels)
+        except Exception as e:
+            await evt.reply(e.args[0], allow_html=True)
+            return
+
     @command.new(help="Add another administrator to a given room (only for existing room admins).")
     @command.argument("user_id", label="User ID", required=True)
     @command.argument("room_id", label="Room ID", required=False)
@@ -183,8 +233,8 @@ class RoomManager(Plugin):
                 raise Exception(f"Could not find user with ID {self.mention_mxid(user_id)} or invite failed.")
 
             # If the user is not yet an admin, promote them
-            if power_levels.users.get(user_id, 0) < 100:
-                power_levels.users[user_id] = 100
+            if power_levels.get_user_level(user_id) < 100:
+                power_levels.set_user_level(user_id, 100)
                 await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, power_levels)
 
             if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
@@ -215,8 +265,8 @@ class RoomManager(Plugin):
                 raise Exception(f"The user {self.mention_mxid(user_id)} is not a member of the room.")
 
             # If the user is an admin, demote them to normal user
-            if power_levels.users.get(user_id, 0) == 100:
-                power_levels.users[user_id] = 0
+            if power_levels.get_user_level(user_id) == 100:
+                power_levels.set_user_level(user_id, 0)
                 await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, power_levels)
 
             if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
@@ -244,8 +294,8 @@ class RoomManager(Plugin):
                 await self.client.invite_user(room_id, evt.sender)
 
             # If the sender is not yet an admin, promote them
-            if power_levels.users.get(evt.sender, 0) < 100:
-                power_levels.users[evt.sender] = 100
+            if power_levels.get_user_level(evt.sender) < 100:
+                power_levels.set_user_level(evt.sender, 100)
                 await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, power_levels)
 
             if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
@@ -322,7 +372,7 @@ class RoomManager(Plugin):
         """Asserts that the user is an admin in the room."""
         if user_id not in room_members:
             raise Exception(f"You are not a member of the room.")
-        if power_levels.users.get(user_id, 0) < 100:
+        if power_levels.get_user_level(user_id) < 100:
             raise Exception(f"You need to be an admin in the room yourself to perform this action.")
 
     async def get_room_members(self, room_id: str) -> tuple[list[str], PowerLevelStateEventContent]:
