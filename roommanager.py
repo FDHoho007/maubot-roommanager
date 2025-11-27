@@ -197,35 +197,6 @@ class RoomManager(Plugin):
         await self.client.forget_room(room_id)
         await evt.reply(f"I have forgotten the empty room {self.mention_mxid(room_id)}.", allow_html=True)
 
-    @command.new(help="Fix power levels in a room (only for room admins).")
-    @command.argument("room_id", label="Room ID", required=False)
-    async def fixroompowerlevels(self, evt: MessageEvent, room_id: str) -> None:
-        room_id = self.parse_args(evt.content, evt.room_id, extract_user_id=False)
-
-        try:
-            _, power_levels = await self.get_room_members(room_id)
-            power_levels = power_levels.serialize()
-            await self.assert_room_version(room_id)
-
-            self.log.info(power_levels)
-            new_power_levels = DEFAULT_POWER_LEVELS | power_levels
-            new_power_levels["events"] = DEFAULT_POWER_LEVELS["events"] | power_levels.get("events", {})
-            if "notifications" in power_levels:
-                new_power_levels["notifications"] = power_levels["notifications"]
-            new_power_levels["invite"] = 0
-            if True:
-                new_power_levels["events_default"] = 100
-                new_power_levels["events"]["m.reaction"] = 100
-                new_power_levels["events"]["m.room.redaction"] = 100
-                new_power_levels["events"]["m.space.child"] = 0
-                new_power_levels["events"]["org.matrix.msc3401.call.member"] = 50
-                new_power_levels["events"]["org.matrix.msc3401.call"] = 50
-            self.log.info(new_power_levels)
-            await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, new_power_levels)
-        except Exception as e:
-            await evt.reply(e.args[0], allow_html=True)
-            return
-
     @command.new(help="Add another administrator to a given room (only for existing room admins).")
     @command.argument("user_id", label="User ID", required=True)
     @command.argument("room_id", label="Room ID", required=False)
