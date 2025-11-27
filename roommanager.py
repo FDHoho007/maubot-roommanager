@@ -21,8 +21,8 @@ DEFAULT_POWER_LEVELS = {
         "m.room.tombstone": 150,
         "m.room.server_acl": 100,
         "m.room.encryption": 100,
-        "org.matrix.msc3401.call.member": 0,
-        "org.matrix.msc3401.call": 100,
+        "org.matrix.msc3401.call.member": 0, #50
+        "org.matrix.msc3401.call": 100, #50
         "m.space.child": 50,
         "m.room.topic": 50,
         "m.room.pinned_events": 50,
@@ -102,6 +102,14 @@ class RoomManager(Plugin):
                 "content": {"join_rule": "public" if is_public else "invite"}
             }
         ]
+        power_level_override = DEFAULT_POWER_LEVELS | {"users": {evt.sender: 100}}
+        if room_type == "space":
+            power_level_override["events_default"] = 100
+            power_level_override["events"]["m.reaction"] = 100
+            power_level_override["events"]["m.room.redaction"] = 100
+            power_level_override["events"]["m.space.child"] = 0
+            power_level_override["events"]["org.matrix.msc3401.call.member"] = 50
+            power_level_override["events"]["org.matrix.msc3401.call"] = 50
         room_id = (await self.client.create_room(
             alias_localpart=name.replace(" ", "-") if is_public else None, 
             visibility=RoomDirectoryVisibility.PUBLIC if is_public else RoomDirectoryVisibility.PRIVATE, 
@@ -110,7 +118,7 @@ class RoomManager(Plugin):
             initial_state=initial_state,
             creation_content=creation_content,
             room_version=ROOM_VERSION, 
-            power_level_override=DEFAULT_POWER_LEVELS | {"users": {evt.sender: 100}}
+            power_level_override=power_level_override
         ))
         if not self.config["silence_success_responses"] or not await self.is_group_chat(evt.room_id):
             await evt.reply(f"Created {room_type} {self.mention_mxid(room_id)} with visibility {visibility[0]}.", allow_html=True)
@@ -195,15 +203,23 @@ class RoomManager(Plugin):
         room_id = self.parse_args(evt.content, evt.room_id, extract_user_id=False)
 
         try:
-            room_members, power_levels = await self.get_room_members(room_id)
+            _, power_levels = await self.get_room_members(room_id)
+            power_levels = power_levels.serialize()
             await self.assert_room_version(room_id)
-            await self.assert_room_admin(room_members, power_levels, evt.sender)
 
-            self.log.info(power_levels.serialize())
-            new_power_levels = DEFAULT_POWER_LEVELS | power_levels.serialize()
-            new_power_levels["events"] = DEFAULT_POWER_LEVELS["events"] | power_levels.serialize().get("events", {})
-            new_power_levels["notifications"] = power_levels.serialize().get("notifications", {})
+            self.log.info(power_levels)
+            new_power_levels = DEFAULT_POWER_LEVELS | power_levels
+            new_power_levels["events"] = DEFAULT_POWER_LEVELS["events"] | power_levels.get("events", {})
+            if "notifications" in power_levels:
+                new_power_levels["notifications"] = power_levels["notifications"]
             new_power_levels["invite"] = 0
+            if True:
+                new_power_levels["events_default"] = 100
+                new_power_levels["events"]["m.reaction"] = 100
+                new_power_levels["events"]["m.room.redaction"] = 100
+                new_power_levels["events"]["m.space.child"] = 0
+                new_power_levels["events"]["org.matrix.msc3401.call.member"] = 50
+                new_power_levels["events"]["org.matrix.msc3401.call"] = 50
             self.log.info(new_power_levels)
             await self.client.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, new_power_levels)
         except Exception as e:
